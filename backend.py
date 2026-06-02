@@ -33,7 +33,7 @@ def upload_text_to_cloud(text: str):
     for i, chunk in enumerate(paragraphs):
         # Explicit configuration via types to force 768 dimensions directly from the model
         response = ai_client.models.embed_content(
-            model="gemini-embedding-001",
+            model="text-embedding-004",
             contents=chunk,
             config=types.EmbedContentConfig(output_dimensionality=768)
         )
@@ -48,7 +48,7 @@ def query_rag_system(user_query: str):
         
     # Explicit configuration via types to force 768 dimensions matching your index layout
     response = ai_client.models.embed_content(
-        model="gemini-embedding-001",
+        model="text-embedding-004",
         contents=user_query,
         config=types.EmbedContentConfig(output_dimensionality=768)
     )
@@ -66,6 +66,7 @@ def query_rag_system(user_query: str):
         f"Question: {user_query}"
     )
     
+    # FIX: Corrected model naming mapping for the google-genai library
     llm_response = ai_client.models.generate_content(
         model='gemini-1.5-flash',
         contents=prompt,
