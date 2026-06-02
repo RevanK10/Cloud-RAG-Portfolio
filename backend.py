@@ -38,12 +38,37 @@ _WORKING_GENERATION_MODEL = None
 _GENERATION_MODEL_CANDIDATES = [
     os.getenv("GENERATION_MODEL", "").strip(),
     "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
     "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
     "gemini-1.5-pro",
+    "gemini-1.5-pro-001",
+    "gemini-pro",
     "models/gemini-2.0-flash",
+    "models/gemini-2.0-flash-001",
     "models/gemini-1.5-flash",
+    "models/gemini-1.5-flash-001",
     "models/gemini-1.5-pro",
+    "models/gemini-1.5-pro-001",
+    "models/gemini-pro",
 ]
+
+
+def _discover_generation_models():
+    """Query the API for models that support generateContent and return their names."""
+    try:
+        discovered = []
+        for m in ai_client.models.list():
+            name = getattr(m, "name", None) or ""
+            supported = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if "generateContent" in supported:
+                short = name.removeprefix("models/") if name.startswith("models/") else name
+                if "gemini" in name.lower():
+                    # prefer short names first, then full names
+                    discovered.extend([short, name])
+        return list(dict.fromkeys(discovered))  # deduplicated, order preserved
+    except Exception:
+        return []
 
 
 def _extract_embedding_values(response):
@@ -127,11 +152,18 @@ def _embed_text(text: str):
 
 
 def _iter_generation_models():
-    """Yield candidate generation model names, preferring previously working model."""
+    """Yield candidate generation model names: cached winner → env var → API discovery → static list."""
     seen = set()
     ordered = []
     if _WORKING_GENERATION_MODEL:
         ordered.append(_WORKING_GENERATION_MODEL)
+    # env var override always first
+    env_model = os.getenv("GENERATION_MODEL", "").strip()
+    if env_model:
+        ordered.append(env_model)
+    # dynamically discovered models from the API
+    ordered.extend(_discover_generation_models())
+    # static fallback list
     ordered.extend(_GENERATION_MODEL_CANDIDATES)
 
     for model in ordered:
