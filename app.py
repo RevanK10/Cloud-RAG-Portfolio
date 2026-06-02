@@ -100,7 +100,7 @@ import streamlit as st
 import os
 from backend import upload_text_to_cloud, query_rag_system
 
-st.set_page_confid(page_title="Cloud RAG Portfolio", page_icon="R", layout="centered")
+st.set_page_config(page_title="Cloud RAG Portfolio", page_icon="R", layout="centered")
 st.title("Cloud-Powered RAG Assistant")
 st.write("Lightweight SDK Build: Zero Local Storage & Compilers Required")
 
