@@ -1,3 +1,14 @@
+
+---
+title: Cloud RAG Assistant
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_file: app.py
+pinned: false
+---
+
 # Cloud-Powered RAG Assistant
 
 A lightweight, zero-local-storage Retrieval-Augmented Generation (RAG) chat application. 
