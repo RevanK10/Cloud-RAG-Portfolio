@@ -22,6 +22,18 @@ else:
     pc = None
     index = None
 
+EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+_WORKING_EMBEDDING_MODEL = None
+_EMBEDDING_MODEL_CANDIDATES = [
+    os.getenv("EMBEDDING_MODEL", "").strip(),
+    "gemini-embedding-001",
+    "text-embedding-004",
+    "embedding-001",
+    "models/gemini-embedding-001",
+    "models/text-embedding-004",
+    "models/embedding-001",
+]
+
 
 def _extract_embedding_values(response):
     """Supports multiple google-genai response shapes."""
@@ -61,6 +73,47 @@ def _extract_matches(results):
         return results.get("matches", [])
     return getattr(results, "matches", []) or []
 
+
+def _iter_embedding_models():
+    """Yield candidate embedding model names, preferring previously working model."""
+    seen = set()
+    ordered = []
+    if _WORKING_EMBEDDING_MODEL:
+        ordered.append(_WORKING_EMBEDDING_MODEL)
+    ordered.extend(_EMBEDDING_MODEL_CANDIDATES)
+
+    for model in ordered:
+        if not model:
+            continue
+        if model in seen:
+            continue
+        seen.add(model)
+        yield model
+
+
+def _embed_text(text: str):
+    """Try supported embedding models and cache the first one that works."""
+    global _WORKING_EMBEDDING_MODEL
+
+    last_error = None
+    for model_name in _iter_embedding_models():
+        try:
+            response = ai_client.models.embed_content(
+                model=model_name,
+                contents=text,
+                config=types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIMENSION),
+            )
+            _WORKING_EMBEDDING_MODEL = model_name
+            return _extract_embedding_values(response)
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError(
+        "No supported embedding model found. "
+        "Set EMBEDDING_MODEL in environment to a valid embedding model for your API key."
+    ) from last_error
+
 def upload_text_to_cloud(text: str):
     """Slices text dynamically and uploads vectors directly to Pinecone Cloud."""
     if not ai_client or not index:
@@ -71,13 +124,7 @@ def upload_text_to_cloud(text: str):
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     
     for i, chunk in enumerate(paragraphs):
-        # FIX: Changed model to text-embedding-004 to bypass the v1beta SDK 404 bug
-        response = ai_client.models.embed_content(
-            model="text-embedding-004",
-            contents=chunk,
-            config=types.EmbedContentConfig(output_dimensionality=768)
-        )
-        vector = _extract_embedding_values(response)
+        vector = _embed_text(chunk)
         vector_id = f"vec_{uuid.uuid4().hex}_{i}"
         index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"text": chunk}}])
     return True
@@ -87,13 +134,7 @@ def query_rag_system(user_query: str):
     if not ai_client or not index:
         return "Backend services are initializing or missing API keys. Check your Space Secrets."
         
-    # FIX: Changed model to text-embedding-004 to bypass the v1beta SDK 404 bug
-    response = ai_client.models.embed_content(
-        model="text-embedding-004",
-        contents=user_query,
-        config=types.EmbedContentConfig(output_dimensionality=768)
-    )
-    query_vector = _extract_embedding_values(response)
+    query_vector = _embed_text(user_query)
     
     results = index.query(vector=query_vector, top_k=2, include_metadata=True)
 
