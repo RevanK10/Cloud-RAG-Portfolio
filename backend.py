@@ -34,6 +34,17 @@ _EMBEDDING_MODEL_CANDIDATES = [
     "models/embedding-001",
 ]
 
+_WORKING_GENERATION_MODEL = None
+_GENERATION_MODEL_CANDIDATES = [
+    os.getenv("GENERATION_MODEL", "").strip(),
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "models/gemini-2.0-flash",
+    "models/gemini-1.5-flash",
+    "models/gemini-1.5-pro",
+]
+
 
 def _extract_embedding_values(response):
     """Supports multiple google-genai response shapes."""
@@ -114,6 +125,48 @@ def _embed_text(text: str):
         "Set EMBEDDING_MODEL in environment to a valid embedding model for your API key."
     ) from last_error
 
+
+def _iter_generation_models():
+    """Yield candidate generation model names, preferring previously working model."""
+    seen = set()
+    ordered = []
+    if _WORKING_GENERATION_MODEL:
+        ordered.append(_WORKING_GENERATION_MODEL)
+    ordered.extend(_GENERATION_MODEL_CANDIDATES)
+
+    for model in ordered:
+        if not model:
+            continue
+        if model in seen:
+            continue
+        seen.add(model)
+        yield model
+
+
+def _generate_text(prompt: str):
+    """Try supported generation models and cache the first one that works."""
+    global _WORKING_GENERATION_MODEL
+
+    last_error = None
+    for model_name in _iter_generation_models():
+        try:
+            response = ai_client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            _WORKING_GENERATION_MODEL = model_name
+            if response and getattr(response, "text", None):
+                return response.text
+            return "I cannot find that in the documents."
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError(
+        "No supported generation model found. "
+        "Set GENERATION_MODEL in environment to a valid model for your API key."
+    ) from last_error
+
 def upload_text_to_cloud(text: str):
     """Slices text dynamically and uploads vectors directly to Pinecone Cloud."""
     if not ai_client or not index:
@@ -153,8 +206,4 @@ def query_rag_system(user_query: str):
         f"Question: {user_query}"
     )
     
-    llm_response = ai_client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=prompt,
-    )
-    return llm_response.text if llm_response and llm_response.text else "I cannot find that in the documents."
+    return _generate_text(prompt)
