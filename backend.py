@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 from pinecone import Pinecone
 
 # 1. Try to load local variables if they exist (local testing)
@@ -30,10 +31,11 @@ def upload_text_to_cloud(text: str):
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     
     for i, chunk in enumerate(paragraphs):
-        # FIX: Swapped legacy model for SDK-supported gemini-embedding-001
+        # Explicit configuration via types to force 768 dimensions directly from the model
         response = ai_client.models.embed_content(
             model="gemini-embedding-001",
-            contents=chunk
+            contents=chunk,
+            config=types.EmbedContentConfig(output_dimensionality=768)
         )
         vector = response.embeddings[0].values
         index.upsert(vectors=[(f"vec_{i}", vector, {"text": chunk})])
@@ -44,10 +46,11 @@ def query_rag_system(user_query: str):
     if not ai_client or not index:
         return "Backend services are initializing or missing API keys. Check your Space Secrets."
         
-    # FIX: Swapped legacy model for SDK-supported gemini-embedding-001
+    # Explicit configuration via types to force 768 dimensions matching your index layout
     response = ai_client.models.embed_content(
         model="gemini-embedding-001",
-        contents=user_query
+        contents=user_query,
+        config=types.EmbedContentConfig(output_dimensionality=768)
     )
     query_vector = response.embeddings[0].values
     
