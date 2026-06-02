@@ -30,8 +30,9 @@ def upload_text_to_cloud(text: str):
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     
     for i, chunk in enumerate(paragraphs):
+        # FIX: Swapped legacy model for SDK-supported gemini-embedding-001
         response = ai_client.models.embed_content(
-            model="text-embedding-004",
+            model="gemini-embedding-001",
             contents=chunk
         )
         vector = response.embeddings[0].values
@@ -43,8 +44,9 @@ def query_rag_system(user_query: str):
     if not ai_client or not index:
         return "Backend services are initializing or missing API keys. Check your Space Secrets."
         
+    # FIX: Swapped legacy model for SDK-supported gemini-embedding-001
     response = ai_client.models.embed_content(
-        model="text-embedding-004",
+        model="gemini-embedding-001",
         contents=user_query
     )
     query_vector = response.embeddings[0].values
