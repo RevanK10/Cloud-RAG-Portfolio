@@ -31,7 +31,7 @@ def upload_text_to_cloud(text: str):
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     
     for i, chunk in enumerate(paragraphs):
-        # FIX: Explicitly use "text-embedding-004" as required by the google-genai SDK
+        # FIX: Changed model to text-embedding-004 to bypass the v1beta SDK 404 bug
         response = ai_client.models.embed_content(
             model="text-embedding-004",
             contents=chunk,
@@ -46,7 +46,7 @@ def query_rag_system(user_query: str):
     if not ai_client or not index:
         return "Backend services are initializing or missing API keys. Check your Space Secrets."
         
-    # FIX: Explicitly use "text-embedding-004" as required by the google-genai SDK
+    # FIX: Changed model to text-embedding-004 to bypass the v1beta SDK 404 bug
     response = ai_client.models.embed_content(
         model="text-embedding-004",
         contents=user_query,
@@ -66,7 +66,6 @@ def query_rag_system(user_query: str):
         f"Question: {user_query}"
     )
     
-    # FIX: Corrected text generation model string mapping
     llm_response = ai_client.models.generate_content(
         model='gemini-1.5-flash',
         contents=prompt,
