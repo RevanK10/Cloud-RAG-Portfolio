@@ -1,0 +1,1 @@
+streamlit, python-dotenv, google-genai, pinecone
