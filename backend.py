@@ -31,7 +31,7 @@ def upload_text_to_cloud(text: str):
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     
     for i, chunk in enumerate(paragraphs):
-        # Explicit configuration via types to force 768 dimensions directly from the model
+        # FIX: Explicitly use "text-embedding-004" as required by the google-genai SDK
         response = ai_client.models.embed_content(
             model="text-embedding-004",
             contents=chunk,
@@ -46,7 +46,7 @@ def query_rag_system(user_query: str):
     if not ai_client or not index:
         return "Backend services are initializing or missing API keys. Check your Space Secrets."
         
-    # Explicit configuration via types to force 768 dimensions matching your index layout
+    # FIX: Explicitly use "text-embedding-004" as required by the google-genai SDK
     response = ai_client.models.embed_content(
         model="text-embedding-004",
         contents=user_query,
@@ -66,7 +66,7 @@ def query_rag_system(user_query: str):
         f"Question: {user_query}"
     )
     
-    # FIX: Corrected model naming mapping for the google-genai library
+    # FIX: Corrected text generation model string mapping
     llm_response = ai_client.models.generate_content(
         model='gemini-1.5-flash',
         contents=prompt,
