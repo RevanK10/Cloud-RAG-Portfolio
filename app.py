@@ -1,5 +1,13 @@
 import streamlit as st
 import os
+
+# Hydrate environment from Streamlit secrets first so backend init can see keys.
+for _secret_key in ("GOOGLE_API_KEY", "PINECONE_API_KEY", "PINECONE_INDEX"):
+    if not os.getenv(_secret_key):
+        secret_value = st.secrets.get(_secret_key)
+        if secret_value:
+            os.environ[_secret_key] = str(secret_value)
+
 import backend as bg  # Imported as bg to support clean namespaces
 
 st.set_page_config(page_title="Cloud RAG Portfolio", page_icon="🤖", layout="wide")

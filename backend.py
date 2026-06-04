@@ -9,19 +9,9 @@ from pinecone import Pinecone
 # 1. Try to load local variables if they exist
 load_dotenv()
 
-# 2. Grab keys securely
-GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
-PINECONE_KEY = os.getenv("PINECONE_API_KEY")
-
-# 3. Prevent crashing at boot time if keys are loading slowly
-if GOOGLE_KEY and PINECONE_KEY:
-    ai_client = genai.Client(api_key=GOOGLE_KEY)
-    pc = Pinecone(api_key=PINECONE_KEY)
-    index = pc.Index("rag-portfolio")
-else:
-    ai_client = None
-    pc = None
-    index = None
+ai_client = None
+pc = None
+index = None
 
 EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 _WORKING_EMBEDDING_MODEL = None
@@ -41,9 +31,52 @@ _GENERATION_MODEL_CANDIDATES = [
 ]
 
 
+def _get_secret(name: str):
+    value = os.getenv(name)
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+        secret_value = st.secrets.get(name)
+        if secret_value:
+            os.environ[name] = str(secret_value)
+            return str(secret_value)
+    except Exception:
+        return None
+
+    return None
+
+
+def _ensure_clients():
+    """Lazily initialize cloud clients after secrets are available."""
+    global ai_client, pc, index
+
+    if ai_client and index:
+        return True
+
+    google_key = _get_secret("GOOGLE_API_KEY")
+    pinecone_key = _get_secret("PINECONE_API_KEY")
+    index_name = _get_secret("PINECONE_INDEX") or "rag-portfolio"
+
+    if not google_key or not pinecone_key:
+        return False
+
+    try:
+        ai_client = genai.Client(api_key=google_key)
+        pc = Pinecone(api_key=pinecone_key)
+        index = pc.Index(index_name)
+        return True
+    except Exception:
+        ai_client = None
+        pc = None
+        index = None
+        return False
+
+
 def get_index_stats():
     """UPGRADE: Fetches real-time vector counts directly from the Pinecone Cloud cluster."""
-    if not index:
+    if not _ensure_clients():
         return {"total_vector_count": 0}
     try:
         return index.describe_index_stats()
@@ -53,7 +86,7 @@ def get_index_stats():
 
 def clear_vector_database():
     """UPGRADE: Wipes out all stored vectors inside the index to reset the workspace."""
-    if not index:
+    if not _ensure_clients():
         return False
     try:
         index.delete(delete_all=True)
@@ -63,6 +96,8 @@ def clear_vector_database():
 
 
 def _discover_generation_models():
+    if not _ensure_clients():
+        return []
     try:
         discovered = []
         for m in ai_client.models.list():
@@ -181,9 +216,13 @@ def _generate_text(prompt: str):
 
 def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 100):
     """UPGRADE: Slices text dynamically with sliding window character limits."""
-    if not ai_client or not index or not text.strip():
+    if not _ensure_clients() or not text.strip():
         return False
-        
+
+    # Prevent non-positive step sizes when overlap >= chunk size.
+    safe_overlap = max(0, min(chunk_overlap, chunk_size - 1))
+    step = max(1, chunk_size - safe_overlap)
+
     chunks = []
     start = 0
     text_len = len(text)
@@ -193,14 +232,13 @@ def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-        start += (chunk_size - chunk_overlap)
+        start += step
     
     try:
         for i, chunk in enumerate(chunks):
             vector = _embed_text(chunk)
             vector_id = f"vec_{int(time.time())}_{uuid.uuid4().hex[:6]}_{i}"
-            # UPGRADE: Pass as an explicit tuple format (ID, values, metadata dict)
-            index.upsert(vectors=[(vector_id, vector, {"text": chunk})])
+            index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"text": chunk}}])
         return True
     except Exception:
         return False
@@ -208,7 +246,7 @@ def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 
 
 def query_rag_system(user_query: str):
     """UPGRADE: Queries Pinecone for context and returns a tuple (answer, source_chunks)."""
-    if not ai_client or not index:
+    if not _ensure_clients():
         return "Backend services are initializing or missing API keys.", []
         
     try:
