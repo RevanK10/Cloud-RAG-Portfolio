@@ -1,14 +1,15 @@
 import os
 import uuid
+import time
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pinecone import Pinecone
 
-# 1. Try to load local variables if they exist (local testing)
+# 1. Try to load local variables if they exist
 load_dotenv()
 
-# 2. Grab keys securely (works both locally from .env AND on Hugging Face from Secrets)
+# 2. Grab keys securely
 GOOGLE_KEY = os.getenv("GOOGLE_API_KEY")
 PINECONE_KEY = os.getenv("PINECONE_API_KEY")
 
@@ -26,36 +27,42 @@ EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 _WORKING_EMBEDDING_MODEL = None
 _EMBEDDING_MODEL_CANDIDATES = [
     os.getenv("EMBEDDING_MODEL", "").strip(),
-    "gemini-embedding-001",
     "text-embedding-004",
+    "gemini-embedding-001",
     "embedding-001",
-    "models/gemini-embedding-001",
-    "models/text-embedding-004",
-    "models/embedding-001",
 ]
 
 _WORKING_GENERATION_MODEL = None
 _GENERATION_MODEL_CANDIDATES = [
     os.getenv("GENERATION_MODEL", "").strip(),
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
     "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
+    "gemini-2.0-flash",
     "gemini-1.5-pro",
-    "gemini-1.5-pro-001",
-    "gemini-pro",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-flash-001",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-flash-001",
-    "models/gemini-1.5-pro",
-    "models/gemini-1.5-pro-001",
-    "models/gemini-pro",
 ]
 
 
+def get_index_stats():
+    """UPGRADE: Fetches real-time vector counts directly from the Pinecone Cloud cluster."""
+    if not index:
+        return {"total_vector_count": 0}
+    try:
+        return index.describe_index_stats()
+    except Exception:
+        return {"total_vector_count": 0}
+
+
+def clear_vector_database():
+    """UPGRADE: Wipes out all stored vectors inside the index to reset the workspace."""
+    if not index:
+        return False
+    try:
+        index.delete(delete_all=True)
+        return True
+    except Exception:
+        return False
+
+
 def _discover_generation_models():
-    """Query the API for models that support generateContent and return their names."""
     try:
         discovered = []
         for m in ai_client.models.list():
@@ -64,31 +71,25 @@ def _discover_generation_models():
             if "generateContent" in supported:
                 short = name.removeprefix("models/") if name.startswith("models/") else name
                 if "gemini" in name.lower():
-                    # prefer short names first, then full names
                     discovered.extend([short, name])
-        return list(dict.fromkeys(discovered))  # deduplicated, order preserved
+        return list(dict.fromkeys(discovered))
     except Exception:
         return []
 
 
 def _extract_embedding_values(response):
-    """Supports multiple google-genai response shapes."""
     if hasattr(response, "embeddings") and response.embeddings:
         return response.embeddings[0].values
-
-    # Fallback for alternate response shape used by some SDK versions.
     if hasattr(response, "data") and response.data:
         first = response.data[0]
         if isinstance(first, dict):
             return first.get("embedding")
         if hasattr(first, "embedding"):
             return first.embedding
-
     raise ValueError("Unable to extract embedding values from response")
 
 
 def _extract_text_match(match):
-    """Reads metadata text from either Pinecone objects or dicts."""
     metadata = None
     if isinstance(match, dict):
         metadata = match.get("metadata")
@@ -104,14 +105,12 @@ def _extract_text_match(match):
 
 
 def _extract_matches(results):
-    """Reads query matches from either Pinecone objects or dicts."""
     if isinstance(results, dict):
         return results.get("matches", [])
     return getattr(results, "matches", []) or []
 
 
 def _iter_embedding_models():
-    """Yield candidate embedding model names, preferring previously working model."""
     seen = set()
     ordered = []
     if _WORKING_EMBEDDING_MODEL:
@@ -119,18 +118,14 @@ def _iter_embedding_models():
     ordered.extend(_EMBEDDING_MODEL_CANDIDATES)
 
     for model in ordered:
-        if not model:
-            continue
-        if model in seen:
+        if not model or model in seen:
             continue
         seen.add(model)
         yield model
 
 
 def _embed_text(text: str):
-    """Try supported embedding models and cache the first one that works."""
     global _WORKING_EMBEDDING_MODEL
-
     last_error = None
     for model_name in _iter_embedding_models():
         try:
@@ -144,41 +139,29 @@ def _embed_text(text: str):
         except Exception as exc:
             last_error = exc
             continue
-
-    raise RuntimeError(
-        "No supported embedding model found. "
-        "Set EMBEDDING_MODEL in environment to a valid embedding model for your API key."
-    ) from last_error
+    raise RuntimeError("No supported embedding model found.") from last_error
 
 
 def _iter_generation_models():
-    """Yield candidate generation model names: cached winner → env var → API discovery → static list."""
     seen = set()
     ordered = []
     if _WORKING_GENERATION_MODEL:
         ordered.append(_WORKING_GENERATION_MODEL)
-    # env var override always first
     env_model = os.getenv("GENERATION_MODEL", "").strip()
     if env_model:
         ordered.append(env_model)
-    # dynamically discovered models from the API
     ordered.extend(_discover_generation_models())
-    # static fallback list
     ordered.extend(_GENERATION_MODEL_CANDIDATES)
 
     for model in ordered:
-        if not model:
-            continue
-        if model in seen:
+        if not model or model in seen:
             continue
         seen.add(model)
         yield model
 
 
 def _generate_text(prompt: str):
-    """Try supported generation models and cache the first one that works."""
     global _WORKING_GENERATION_MODEL
-
     last_error = None
     for model_name in _iter_generation_models():
         try:
@@ -193,49 +176,63 @@ def _generate_text(prompt: str):
         except Exception as exc:
             last_error = exc
             continue
+    raise RuntimeError("No supported generation model found.") from last_error
 
-    raise RuntimeError(
-        "No supported generation model found. "
-        "Set GENERATION_MODEL in environment to a valid model for your API key."
-    ) from last_error
 
-def upload_text_to_cloud(text: str):
-    """Slices text dynamically and uploads vectors directly to Pinecone Cloud."""
-    if not ai_client or not index:
-        return False
-    if not text.strip():
+def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 100):
+    """UPGRADE: Slices text dynamically with sliding window character limits."""
+    if not ai_client or not index or not text.strip():
         return False
         
-    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    chunks = []
+    start = 0
+    text_len = len(text)
     
-    for i, chunk in enumerate(paragraphs):
-        vector = _embed_text(chunk)
-        vector_id = f"vec_{uuid.uuid4().hex}_{i}"
-        index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"text": chunk}}])
-    return True
+    while start < text_len:
+        end = start + chunk_size
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start += (chunk_size - chunk_overlap)
+    
+    try:
+        for i, chunk in enumerate(chunks):
+            vector = _embed_text(chunk)
+            vector_id = f"vec_{int(time.time())}_{uuid.uuid4().hex[:6]}_{i}"
+            index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"text": chunk}}])
+        return True
+    except Exception:
+        return False
+
 
 def query_rag_system(user_query: str):
-    """Queries Pinecone for context and uses Gemini to answer."""
+    """UPGRADE: Queries Pinecone for context and returns a tuple (answer, source_chunks)."""
     if not ai_client or not index:
-        return "Backend services are initializing or missing API keys. Check your Space Secrets."
+        return "Backend services are initializing or missing API keys.", []
         
-    query_vector = _embed_text(user_query)
-    
-    results = index.query(vector=query_vector, top_k=2, include_metadata=True)
+    try:
+        query_vector = _embed_text(user_query)
+        results = index.query(vector=query_vector, top_k=3, include_metadata=True)
 
-    context_chunks = []
-    for match in _extract_matches(results):
-        chunk = _extract_text_match(match)
-        if chunk:
-            context_chunks.append(chunk)
+        context_chunks = []
+        for match in _extract_matches(results):
+            chunk = _extract_text_match(match)
+            if chunk:
+                context_chunks.append(chunk)
 
-    context = "\n\n".join(context_chunks)
-    
-    prompt = (
-        f"Answer the user's question using ONLY the provided context below.\n"
-        f"If the answer is not in the context, say 'I cannot find that in the documents.'\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: {user_query}"
-    )
-    
-    return _generate_text(prompt)
+        if not context_chunks:
+            return "I cannot find that in the documents.", []
+
+        context = "\n\n".join(context_chunks)
+        
+        prompt = (
+            f"Answer the user's question using ONLY the provided context below.\n"
+            f"If the answer is not in the context, say 'I cannot find that in the documents.'\n\n"
+            f"Context:\n{context}\n\n"
+            f"Question: {user_query}"
+        )
+        
+        answer = _generate_text(prompt)
+        return answer, context_chunks
+    except Exception as e:
+        return f"Error executing RAG workflow: {str(e)}", []

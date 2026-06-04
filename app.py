@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from backend import upload_text_to_cloud, query_rag_system
+import backend as bg  # Imported as bg to support clean namespaces
 
 st.set_page_config(page_title="Cloud RAG Portfolio", page_icon="🤖", layout="wide")
 
@@ -127,10 +127,6 @@ st.markdown(
         .stTextArea textarea::placeholder {
             color: #64748b !important;
         }
-        .stChatMessage [data-testid="stMarkdownContainer"] p,
-        .stChatMessage [data-testid="stMarkdownContainer"] {
-            color: #0f172a !important;
-        }
         .hint {
             color: #64748b;
             font-size: 0.95rem;
@@ -157,50 +153,74 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Guard rails for checking your space secrets
+# Guard rails for checking secrets
 if not os.getenv("GOOGLE_API_KEY") or not os.getenv("PINECONE_API_KEY"):
-    st.error("Missing API Keys! Please verify your local .env file exists or Secrets are set on Hugging Face.")
+    st.error("Missing API Keys! Please verify your Secrets are configured on your Streamlit Cloud dashboard.")
     st.stop()
 
-# Sidebar Layout for data ingestion
+# --- SIDEBAR INTERFACE ---
 with st.sidebar:
+    # Upgrade 1: Real-time Metric Readout
+    stats = bg.get_index_stats()
+    total_vectors = stats.get('total_vector_count', 0)
+    st.metric(label="Live Index Vector Count", value=f"{total_vectors} Chunks")
+    st.hr()
+
     st.markdown("### Data Ingestion")
     st.caption("Paste source text here to refresh the cloud index.")
 
     user_text = st.text_area(
         "Source Text",
-        height=240,
+        height=180,
         placeholder="Paste text, notes, docs, or FAQs here...",
         label_visibility="collapsed",
     )
-    process_button = st.button("Upload to Cloud DB", type="primary", use_container_width=True)
+    
+    # Upgrade 2: Advanced Dynamic Sliders
+    st.markdown("**Advanced Slicing Matrix:**")
+    c_size = st.slider("Chunk Size (Chars)", min_value=100, max_value=1200, value=600, step=50)
+    c_overlap = st.slider("Overlap Buffer", min_value=0, max_value=300, value=100, step=10)
 
-    st.markdown(
-        "<div class='hint'>Tip: shorter chunks usually create faster, more precise retrieval.</div>",
-        unsafe_allow_html=True,
-    )
+    process_button = st.button("Upload to Cloud DB", type="primary", use_container_width=True)
 
     if process_button:
         if user_text:
             with st.spinner("Uploading vectors to Pinecone cloud..."):
-                if upload_text_to_cloud(user_text):
+                if bg.upload_text_to_cloud(user_text, c_size, c_overlap):
                     st.success("Successfully stored in Pinecone!")
+                    st.rerun()
                 else:
                     st.error("Failed to upload. Backend services initializing or error occurred.")
         else:
             st.warning("Please enter some text before uploading.")
-    
-# Initialize chat log state tracking
+            
+    st.hr()
+    # Upgrade 4: Remote Index Clear Button
+    st.markdown("### Admin Utilities")
+    if st.button("Wipe Vector Database", use_container_width=True):
+        with st.spinner("Clearing remote vectors..."):
+            if bg.clear_vector_database():
+                st.success("Database successfully wiped clean!")
+                st.rerun()
+            else:
+                st.error("Failed to wipe index.")
+
+# --- MAIN CHAT INTERFACE ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 st.markdown('<div class="panel-card">', unsafe_allow_html=True)
-st.markdown("#### Chat")
+st.markdown("#### Chat Workspace")
 st.caption("Ask about the text you uploaded and get grounded answers from the cloud-backed knowledge base.")
 
+# Render persistent messages with custom source expanders
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant" and message.get("sources"):
+            with st.expander("🔍 Retained Source Receipts"):
+                for source in message["sources"]:
+                    st.info(source)
 
 if user_query := st.chat_input("Ask something about your uploaded data..."):
     with st.chat_message("user"):
@@ -209,11 +229,19 @@ if user_query := st.chat_input("Ask something about your uploaded data..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Querying Cloud Systems..."):
-            try:
-                answer = query_rag_system(user_query)
-                st.markdown(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-            except Exception as e:
-                st.error(f"Error querying cloud backend: {e}")
+            answer, sources = bg.query_rag_system(user_query)
+            st.markdown(answer)
+            
+            # Upgrade 3: Context Source Highlighting
+            if sources:
+                with st.expander("🔍 Retained Source Receipts"):
+                    for source in sources:
+                        st.info(source)
+                        
+    st.session_state.messages.append({
+        "role": "assistant", 
+        "content": answer,
+        "sources": sources
+    })
 
 st.markdown("</div>", unsafe_allow_html=True)
