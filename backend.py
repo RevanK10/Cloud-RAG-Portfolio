@@ -199,7 +199,8 @@ def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 
         for i, chunk in enumerate(chunks):
             vector = _embed_text(chunk)
             vector_id = f"vec_{int(time.time())}_{uuid.uuid4().hex[:6]}_{i}"
-            index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"text": chunk}}])
+            # UPGRADE: Pass as an explicit tuple format (ID, values, metadata dict)
+            index.upsert(vectors=[(vector_id, vector, {"text": chunk})])
         return True
     except Exception:
         return False
