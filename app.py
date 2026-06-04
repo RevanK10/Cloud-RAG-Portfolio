@@ -14,6 +14,11 @@ st.markdown(
                 linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
             color: #0f172a;
         }
+        .stApp, .stApp p, .stApp li, .stApp label,
+        .stApp h1, .stApp h2, .stApp h3, .stApp h4,
+        .stApp [data-testid="stMarkdownContainer"] {
+            color: #0f172a;
+        }
         .block-container {
             padding-top: 2rem;
             padding-bottom: 2rem;
@@ -110,11 +115,21 @@ st.markdown(
             border-radius: 16px;
             border: 1px solid rgba(148, 163, 184, 0.35);
             background: rgba(255, 255, 255, 0.92);
+            color: #0f172a !important;
         }
         .stChatInput textarea {
             border-radius: 18px;
             border: 1px solid rgba(148, 163, 184, 0.35);
             background: rgba(255, 255, 255, 0.95);
+            color: #0f172a !important;
+        }
+        .stChatInput textarea::placeholder,
+        .stTextArea textarea::placeholder {
+            color: #64748b !important;
+        }
+        .stChatMessage [data-testid="stMarkdownContainer"] p,
+        .stChatMessage [data-testid="stMarkdownContainer"] {
+            color: #0f172a !important;
         }
         .hint {
             color: #64748b;
