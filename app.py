@@ -193,7 +193,7 @@ with st.sidebar:
         else:
             st.warning("Please enter some text before uploading.")
             
-    st.hr()
+    st.divider()
     # Upgrade 4: Remote Index Clear Button
     st.markdown("### Admin Utilities")
     if st.button("Wipe Vector Database", use_container_width=True):
