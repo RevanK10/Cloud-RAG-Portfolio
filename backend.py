@@ -75,7 +75,7 @@ def _ensure_clients():
 
 
 def get_index_stats():
-    """UPGRADE: Fetches real-time vector counts directly from the Pinecone Cloud cluster."""
+    """Fetches real-time vector counts directly from the Pinecone Cloud cluster."""
     if not _ensure_clients():
         return {"total_vector_count": 0}
     try:
@@ -85,7 +85,7 @@ def get_index_stats():
 
 
 def clear_vector_database():
-    """UPGRADE: Wipes out all stored vectors inside the index to reset the workspace."""
+    """Wipes out all stored vectors inside the index to reset the workspace."""
     if not _ensure_clients():
         return False
     try:
@@ -214,12 +214,29 @@ def _generate_text(prompt: str):
     raise RuntimeError("No supported generation model found.") from last_error
 
 
+def process_image_ocr(image_bytes: bytes, mime_type: str) -> str:
+    """UPGRADE FEATURE: Leverages multimodal capabilities to transcribe handwritten notes."""
+    if not _ensure_clients():
+        return ""
+    try:
+        # Prompting Gemini to perform text extraction on the image layout
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                "You are an expert handwriting transcription assistant. Extract and accurately transcribe all text, structured items, and handwritten elements from this image. Output only the raw transcribed text without commentary."
+            ]
+        )
+        return response.text if response.text else ""
+    except Exception:
+        return ""
+
+
 def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 100):
-    """UPGRADE: Slices text dynamically with sliding window character limits."""
+    """Slices text dynamically with sliding window character limits."""
     if not _ensure_clients() or not text.strip():
         return False
 
-    # Prevent non-positive step sizes when overlap >= chunk size.
     safe_overlap = max(0, min(chunk_overlap, chunk_size - 1))
     step = max(1, chunk_size - safe_overlap)
 
@@ -245,7 +262,7 @@ def upload_text_to_cloud(text: str, chunk_size: int = 600, chunk_overlap: int = 
 
 
 def query_rag_system(user_query: str):
-    """UPGRADE: Queries Pinecone for context and returns a tuple (answer, source_chunks)."""
+    """Queries Pinecone for context and returns a tuple (answer, source_chunks)."""
     if not _ensure_clients():
         return "Backend services are initializing or missing API keys.", []
         

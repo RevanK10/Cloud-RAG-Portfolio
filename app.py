@@ -8,7 +8,7 @@ for _secret_key in ("GOOGLE_API_KEY", "PINECONE_API_KEY", "PINECONE_INDEX"):
         if secret_value:
             os.environ[_secret_key] = str(secret_value)
 
-import backend as bg  # Imported as bg to support clean namespaces
+import backend as bg  
 
 st.set_page_config(page_title="Cloud RAG Portfolio", page_icon="🤖", layout="wide")
 
@@ -148,13 +148,13 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <div class="eyebrow">Cloud-native RAG workspace</div>
-        <h1>Cloud-Powered RAG Assistant</h1>
-        <p>Upload text into a managed vector index and ask questions in a polished, chat-first interface powered entirely by cloud services.</p>
+        <div class="eyebrow">Enterprise-grade RAG workspace</div>
+        <h1>Multimodal RAG Engine with Visual OCR</h1>
+        <p>Index documents using sliding window matrices, transcribe handwritten notes on the fly, and run contextually grounded semantic Q&A queries.</p>
         <div class="stat-grid">
-            <div class="stat-card"><span>Deployment style</span><strong>Streamlit front end</strong></div>
-            <div class="stat-card"><span>Storage model</span><strong>No local persistence</strong></div>
-            <div class="stat-card"><span>Inference path</span><strong>Gemini + Pinecone</strong></div>
+            <div class="stat-card"><span>Deployment style</span><strong>Streamlit Front End</strong></div>
+            <div class="stat-card"><span>Storage model</span><strong>Pinecone Serverless Vector Store</strong></div>
+            <div class="stat-card"><span>Inference path</span><strong>Gemini Multimodal</strong></div>
         </div>
     </div>
     """,
@@ -168,41 +168,76 @@ if not os.getenv("GOOGLE_API_KEY") or not os.getenv("PINECONE_API_KEY"):
 
 # --- SIDEBAR INTERFACE ---
 with st.sidebar:
-    # Upgrade 1: Real-time Metric Readout
     stats = bg.get_index_stats()
     total_vectors = stats.get('total_vector_count', 0)
     st.metric(label="Live Index Vector Count", value=f"{total_vectors} Chunks")
     st.divider()
-    st.markdown("### Data Ingestion")
-    st.caption("Paste source text here to refresh the cloud index.")
 
-    user_text = st.text_area(
-        "Source Text",
-        height=180,
-        placeholder="Paste text, notes, docs, or FAQs here...",
-        label_visibility="collapsed",
-    )
+    st.markdown("### Data Ingestion Central")
     
-    # Upgrade 2: Advanced Dynamic Sliders
+    # UPGRADE FEATURE: Ingestion Channel Separation via Tabs
+    tab_text, tab_ocr = st.tabs(["✍️ Plain Text", "📷 Image OCR"])
+    
+    final_text_to_upload = ""
+    
+    with tab_text:
+        user_text = st.text_area(
+            "Source Text Input",
+            height=150,
+            placeholder="Paste technical parameters, code documentation, or meeting logs...",
+            key="plain_text_area"
+        )
+        if user_text:
+            final_text_to_upload = user_text
+
+    with tab_ocr:
+        st.caption("Upload images of sketches, chalkboards, or journals.")
+        
+        # Ingestion Path A: Traditional file picker selection
+        uploaded_image = st.file_uploader("Choose Note Image", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        
+        # Ingestion Path B: Mobile/Desktop live snapshot access
+        camera_image = st.camera_input("Or click a photo of your notes:")
+        
+        target_file = uploaded_image if uploaded_image is not None else camera_image
+        
+        if target_file:
+            # Determine correct document classification mapping
+            file_extension = target_file.name.split(".")[-1].lower() if hasattr(target_file, "name") else "jpeg"
+            mtype = f"image/{file_extension}" if file_extension in ["png", "jpeg", "jpg"] else "image/jpeg"
+            
+            with st.spinner("Extracting handwritten elements..."):
+                raw_bytes = target_file.read()
+                ocr_transcription = bg.process_image_ocr(raw_bytes, mime_type=mtype)
+                
+                if ocr_transcription:
+                    st.success("OCR Extraction Completed!")
+                    with st.expander("📝 View Extracted Transcript"):
+                        st.write(ocr_transcription)
+                    final_text_to_upload = ocr_transcription
+                else:
+                    st.error("OCR Pipeline failed to decode visual elements.")
+    
+    st.divider()
     st.markdown("**Advanced Slicing Matrix:**")
     c_size = st.slider("Chunk Size (Chars)", min_value=100, max_value=1200, value=600, step=50)
     c_overlap = st.slider("Overlap Buffer", min_value=0, max_value=300, value=100, step=10)
 
-    process_button = st.button("Upload to Cloud DB", type="primary", use_container_width=True)
+    process_button = st.button("Upload Assets to Vector Cloud", type="primary", use_container_width=True)
 
     if process_button:
-        if user_text:
-            with st.spinner("Uploading vectors to Pinecone cloud..."):
-                if bg.upload_text_to_cloud(user_text, c_size, c_overlap):
-                    st.success("Successfully stored in Pinecone!")
+        if final_text_to_upload.strip():
+            with st.spinner("Uploading chunks to Pinecone..."):
+                if bg.upload_text_to_cloud(final_text_to_upload, c_size, c_overlap):
+                    st.success("Successfully indexed inside Pinecone Cloud!")
+                    st.date_input
                     st.rerun()
                 else:
-                    st.error("Failed to upload. Backend services initializing or error occurred.")
+                    st.error("Failed to upload. Verify connectivity or index configuration shape.")
         else:
-            st.warning("Please enter some text before uploading.")
+            st.warning("No context loaded. Input text or provide a valid handwritten image resource.")
             
     st.divider()
-    # Upgrade 4: Remote Index Clear Button
     st.markdown("### Admin Utilities")
     if st.button("Wipe Vector Database", use_container_width=True):
         with st.spinner("Clearing remote vectors..."):
@@ -218,7 +253,7 @@ if "messages" not in st.session_state:
 
 st.markdown('<div class="panel-card">', unsafe_allow_html=True)
 st.markdown("#### Chat Workspace")
-st.caption("Ask about the text you uploaded and get grounded answers from the cloud-backed knowledge base.")
+st.caption("Ask about the text or hand-written notes you uploaded.")
 
 # Render persistent messages with custom source expanders
 for message in st.session_state.messages:
@@ -239,7 +274,6 @@ if user_query := st.chat_input("Ask something about your uploaded data..."):
             answer, sources = bg.query_rag_system(user_query)
             st.markdown(answer)
             
-            # Upgrade 3: Context Source Highlighting
             if sources:
                 with st.expander("🔍 Retained Source Receipts"):
                     for source in sources:
