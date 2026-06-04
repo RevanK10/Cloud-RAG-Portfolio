@@ -164,8 +164,7 @@ with st.sidebar:
     stats = bg.get_index_stats()
     total_vectors = stats.get('total_vector_count', 0)
     st.metric(label="Live Index Vector Count", value=f"{total_vectors} Chunks")
-    st.hr()
-
+    st.divider()
     st.markdown("### Data Ingestion")
     st.caption("Paste source text here to refresh the cloud index.")
 
@@ -194,7 +193,7 @@ with st.sidebar:
         else:
             st.warning("Please enter some text before uploading.")
             
-    st.divider()
+    st.hr()
     # Upgrade 4: Remote Index Clear Button
     st.markdown("### Admin Utilities")
     if st.button("Wipe Vector Database", use_container_width=True):
