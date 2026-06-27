@@ -78,18 +78,18 @@ section[data-testid="stSidebar"] * {
 section[data-testid="stSidebar"] input,
 section[data-testid="stSidebar"] textarea {
     color: #ffffff !important;
-    background-color: #1e293b !important;
+    background-color: #1e293b;
 }
 div.stButton > button {
-    background-color: #111827 !important;
-    color: white !important;
-    border: 1px solid #374151 !important;
-    border-radius: 10px !important;
+    background-color: white;
+    color: black;
+    border: 1px solid #374151;
+    border-radius: 10px;
 }
 
 div.stButton > button:hover {
-    background-color: #1f2937 !important;
-    color: white !important;
+    background-color: black !important;
+    color: white;
 }
 </style>
 """, unsafe_allow_html=True)
