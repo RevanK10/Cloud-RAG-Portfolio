@@ -191,7 +191,7 @@ def retrieve(query):
 
     results = index.query(
         vector=embedding,
-        top_k=10,
+        top_k=5,
         include_metadata=True
     )
 
