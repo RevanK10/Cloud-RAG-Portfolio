@@ -191,7 +191,7 @@ def retrieve(query):
 
     results = index.query(
         vector=embedding,
-        top_k=5,
+        top_k=12,
         include_metadata=True
     )
 
@@ -229,10 +229,13 @@ def generate_answer(query):
     context = "\n\n".join([x["text"] for x in retrieved])
 
     prompt = f"""
-Use ONLY the context below.
+Answer using ONLY the provided context.
 
-If the answer is not in the context, say:
-"I don't know based on the documents."
+IMPORTANT:
+- Be complete.
+- Include ALL relevant terms, not just some.
+- If the user asks for a list, return the FULL list found in context.
+- Do not summarize unless asked.
 
 Context:
 {context}

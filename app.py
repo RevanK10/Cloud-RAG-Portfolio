@@ -80,7 +80,17 @@ section[data-testid="stSidebar"] textarea {
     color: #ffffff !important;
     background-color: #1e293b !important;
 }
+div.stButton > button {
+    background-color: #111827 !important;
+    color: white !important;
+    border: 1px solid #374151 !important;
+    border-radius: 10px !important;
+}
 
+div.stButton > button:hover {
+    background-color: #1f2937 !important;
+    color: white !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
