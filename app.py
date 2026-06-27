@@ -86,11 +86,6 @@ div.stButton > button {
     border: 1px solid #374151;
     border-radius: 10px;
 }
-
-div.stButton > button:hover {
-    background-color: black !important;
-    color: white;
-}
 </style>
 """, unsafe_allow_html=True)
 
