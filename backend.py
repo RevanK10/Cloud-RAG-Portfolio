@@ -13,10 +13,6 @@ load_dotenv(dotenv_path=".env", override=True)
 import streamlit as st
 
 
-# ==========================
-# ENV
-# ==========================
-
 def load_env():
     load_dotenv(override=True)
 
@@ -41,27 +37,15 @@ if not GEMINI_API_KEY:
 if not PINECONE_API_KEY:
     raise ValueError("Missing PINECONE_API_KEY")
 
-# ==========================
-# GEMINI CLIENT
-# ==========================
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-# ==========================
-# PINECONE
-# ==========================
-
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Debug
 if PINECONE_INDEX not in pc.list_indexes().names():
     raise ValueError(f"Index '{PINECONE_INDEX}' does not exist.")
 
 index = pc.Index(PINECONE_INDEX)
-
-# ==========================
-# PDF EXTRACTION
-# ==========================
 
 def extract_text_from_pdf(file):
     try:
@@ -79,9 +63,6 @@ def extract_text_from_pdf(file):
         print("PDF ERROR:", e)
         return ""
 
-# ==========================
-# OCR (GEMINI VISION)
-# ==========================
 
 def process_image_ocr(image_bytes):
     try:
@@ -110,10 +91,6 @@ def process_image_ocr(image_bytes):
         print("OCR ERROR:", e)
         return ""
 
-# ==========================
-# EMBEDDINGS (GEMINI)
-# ==========================
-
 embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5")
 
 def embed_text(text):
@@ -123,9 +100,6 @@ def embed_text(text):
         print("EMBED ERROR:", e)
         return []
 
-# ==========================
-# CHUNKING
-# ==========================
 
 def smart_chunk(text):
     text = re.sub(r'\s+', ' ', text).strip()
@@ -146,9 +120,6 @@ def smart_chunk(text):
 
     return chunks
 
-# ==========================
-# INDEXING
-# ==========================
 
 def upload_document(text, source):
     if not text.strip():
@@ -178,9 +149,6 @@ def upload_document(text, source):
 
     return len(vectors)
 
-# ==========================
-# RETRIEVAL
-# ==========================
 
 def retrieve(query):
     embedding = embed_text(query)
@@ -215,10 +183,6 @@ def retrieve(query):
 
     return output
 
-
-# ==========================
-# ANSWER (GEMINI)
-# ==========================
 
 def generate_answer(query):
     retrieved = retrieve(query)
@@ -255,10 +219,6 @@ Question:
     except Exception as e:
         print("ANSWER ERROR:", e)
         return "Error generating answer.", []
-
-# ==========================
-# FOLLOWUPS (GEMINI)
-# ==========================
 
 def generate_followups(query, answer):
     try:

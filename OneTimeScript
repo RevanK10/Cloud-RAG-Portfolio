@@ -5,14 +5,12 @@ pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 
 index_name = "rag-portfolio"
 
-# ⚠️ Delete old index first (optional but recommended)
 if index_name in [i["name"] for i in pc.list_indexes()]:
     pc.delete_index(index_name)
 
-# Create new index
 pc.create_index(
     name=index_name,
-    dimension=384,  # IMPORTANT (matches text-embedding-3-small)
+    dimension=384,
     metric="cosine",
     spec=ServerlessSpec(
         cloud="aws",
