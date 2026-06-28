@@ -28,8 +28,6 @@ The workspace coordinates decoupled services to handle text parsing, geometric v
 
 ## Project Structure
 
-This repository uses a strict separation of concerns strategy to keep UI layers separate from business data infrastructure logic:
-
 ```text
 cloud-rag-portfolio
  ┣ .env                # Confidential keys - Not in Github for security
