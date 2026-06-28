@@ -69,5 +69,3 @@ pip install -r requirements.txt
 python OneTimeScript.py
 streamlit run app.py
 ```
-README-v2.md
-Displaying README-v2.md.
