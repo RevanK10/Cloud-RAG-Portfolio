@@ -16,7 +16,6 @@ The difference between this project and other default guides is that this setup 
 ---
 
 ## Technical Architecture
-
 The workspace coordinates decoupled services to handle text parsing, geometric vector lookups, and conversational syntax alignment:
 
 1. **File Consumption:** When the user uploads a file, the algorithm turns the file into text and sends the pictures of the text to an online system.
@@ -28,31 +27,26 @@ The workspace coordinates decoupled services to handle text parsing, geometric v
 
 ## Project Structure
 
-```text
-cloud-rag-portfolio
- ┣ .env                # Confidential keys - Not in Github for security
- ┣ app.py              # UI - How the screen looks and works
- ┣ backend.py          # Handles the logic behind the answer generation
- ┣ OneTimeScript.py    # An algorithm to run once to set up the Pinecone index - I used this script to create the index when the required specifications were not available within the website.
- ┣ Dockerfile          # Allows the algorithm to run on any computer
- ┗ requirements.txt    # Dependencies for the algorithm to run
-```
+- .env               # Confidential keys - Not in GitHub for security
+- app.py             # UI - How the screen works and looks
+- backend.py         # Handles the logic behind the answer generation
+- OneTimeScript.py   # An algorithm that should be run once to set up the Pinecone index when using locally.
+- Dockerfile         # Allows the algorithm to run on any computer
+- requirements.txt   # Dependencies for the algorithm to run
 
 ---
 
 ## Setup and Installation
 
 ### 1. Secrets Configuration
-Create a `.env` file in the root directory and enter your API credentials:
-```
+Create a .env file in the root directory and enter your API credentials:
+
 PINECONE_API_KEY="your-pinecone-api-key"
 GEMINI_API_KEY="your-gemini-api-key"
 PINECONE_INDEX="rag-portfolio"
-```
 
 ### 2. Local Installation
-```
+
 pip install -r requirements.txt
 python OneTimeScript.py
 streamlit run app.py
-```
